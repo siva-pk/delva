@@ -3,6 +3,7 @@
 import { PRESETS } from "@/lib/timer/presets";
 import { useTimer } from "@/lib/timer/useTimer";
 
+import { EstimateChips } from "./EstimateChips";
 import { IntentionField } from "./IntentionField";
 import { TimeDisplay } from "./TimeDisplay";
 
@@ -42,6 +43,16 @@ export function TimerScreen() {
           // After a break, land with the intention focused — the moment the
           // commitment gets made (break-mode.md §5).
           autoFocus={state.breakEndedWhileAway}
+        />
+      ) : null}
+
+      {state.phase === "idle" ? (
+        <EstimateChips
+          value={state.estimateMinutes}
+          suggested={state.suggestedEstimateMinutes}
+          onChange={(minutes, source) =>
+            dispatch({ type: "SET_ESTIMATE", minutes, source })
+          }
         />
       ) : null}
 
