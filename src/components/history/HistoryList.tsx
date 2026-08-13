@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
+import { weeklyInsight } from "@/lib/calibration/patterns";
 import {
   estimateTakeUpRate,
   listSessions,
@@ -67,6 +68,7 @@ export function HistoryList() {
 
   const days = groupByLocalDay(sessions);
   const takeUp = estimateTakeUpRate(sessions);
+  const insight = weeklyInsight(sessions);
 
   return (
     <div className="flex flex-col gap-10">
@@ -80,6 +82,15 @@ export function HistoryList() {
         You put a time on {takeUp.withEstimate} of your last {takeUp.total}{" "}
         blocks.
       </p>
+
+      {/*
+        Computed locally, so it works signed-out. The scheduled job in
+        0002_weekly_insights.sql is the same analysis for people who have
+        opted in to being told without opening the app.
+      */}
+      {insight.kind === "pattern" ? (
+        <p className="text-base text-text">{insight.text}</p>
+      ) : null}
 
       {days.map(([day, daySessions]) => {
         const served = daySessions.reduce(
