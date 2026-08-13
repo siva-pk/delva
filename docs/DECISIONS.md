@@ -12,6 +12,33 @@ carries over unchanged.
 
 ---
 
+## 2026-08-12 — D-03: auth
+
+**Magic link, no passwords.** Nothing to forget, nothing to reset, no password handling in the
+codebase at all. For an audience that abandons over friction, a password field at the door is
+friction with no upside — the account exists for durability, not for security theatre.
+
+**Auth is additive and never a gate.** The proxy refreshes the session cookie and returns; it does
+not redirect. `getCurrentUser()` returns `null` as a normal state and swallows failures, because
+sync being down must never take the timer down with it. There is no "sign in to continue" anywhere,
+and there won't be until Gate 1.
+
+**`middleware.ts` → `proxy.ts`.** Next 16 deprecates the middleware convention and warns on every
+build. Migrated with the official codemod now rather than carrying the warning through the rest of
+the build.
+
+**Sign-out is POST-only** — a GET sign-out can be fired by any `<img>` on any page. It also leaves
+local history alone: signing out stops sync, it is not a request to erase the device.
+
+**Failure messages are deliberately generic.** Supabase's own error text can distinguish a known
+address from an unknown one, which leaks whether someone has an account.
+
+**Unverified (B-02):** no Supabase project exists, so the magic-link round trip, the code exchange
+and the cookie refresh have never actually run. The unconfigured path *is* verified — `/sign-in`
+degrades to an honest "not configured on this deployment" message instead of throwing.
+
+---
+
 ## 2026-08-12 — D-02: schema
 
 Written as `supabase/migrations/0001_initial_schema.sql`. Unapplied — there is no Supabase project
