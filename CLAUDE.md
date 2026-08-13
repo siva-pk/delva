@@ -85,10 +85,24 @@ Everything else is a feature. This is the thing to protect.
 
 ## Working state
 
-**D-01 scaffold is in.** Next 16 + React 19 + Tailwind v4 + TypeScript, Supabase clients wired via
-`@supabase/ssr`, holding page at `/`, deployment check at `/api/health`. No timer, no schema, no
-auth. The Supabase project and the Vercel deploy at delva.app are still outstanding. Next up is
-**D-02 · Schema**. See `docs/BUILD-PLAN.md`.
+**The app is built.** D-01→D-15 and D-17 all landed on 2026-08-12 in one long autonomous run: timer
+and phase machine, intention, estimate capture, close-out with session chaining, history,
+calibration engine and surface, weekly patterns, break mode, reminder queue, ambient sound, landing
+page. 54 tests, all passing. `npm run dev` and it works, signed out, offline.
+
+**What is not done, and why it matters:**
+- **The migrations have never been run.** No Supabase project, no Docker, no psql on the build
+  machine. They are parse-checked only. This is the biggest unverified surface — expect the first
+  `supabase db push` to find something.
+- **No deploy.** delva.app is not live.
+- **Nothing has been published or posted anywhere.** Phase E drafts are in `docs/content/`, unsent.
+- **Sync is not built.** The app is local-only; auth works but nothing writes to Supabase yet.
+
+`docs/BLOCKERS.md` is the honest list of all of it. Read that before `docs/BUILD-PLAN.md`.
+
+**The friction assumption is still untested** — no real user has been asked for an estimate. The
+take-up rate is instrumented and visible on the history page, and it is still the number that
+decides whether Phase C was worth building.
 
 Where things stand:
 - **Gate 0** (<1k MAU) — distribution and product only. **No billing code.** See STRATEGY §6.

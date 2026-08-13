@@ -3,7 +3,12 @@
 **The single source of truth for what to build next.** Strategy and reasoning live in
 `docs/STRATEGY.md`; this file is the sequence.
 
-**Status:** D-01 scaffold built and building clean; Supabase project and Vercel deploy still to do.
+**Status (2026-08-12, after an autonomous build run):** every code item D-01→D-15 and D-17 is built,
+tested and committed. What is *not* done is everything that needs an account or a human voice: the
+Supabase project, the Vercel deploy, and all publishing/community work. See `docs/BLOCKERS.md` —
+that file is the honest list, and it is where to start when picking this back up.
+
+The migrations have **never been executed**. That is the largest single piece of unverified work.
 
 ---
 
