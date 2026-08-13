@@ -126,16 +126,22 @@ export function useTimer(handlers: Handlers = {}) {
     if (!timer.running || timer.targetAt === null) return;
 
     const id = window.setTimeout(sync, Math.max(0, timer.targetAt - Date.now()) + 50);
-    const onVisible = () => {
+
+    const onVisibilityChange = () => {
       if (document.visibilityState === "visible") sync();
     };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
+    // Not gated on visibilityState. If the window has focus the user is here,
+    // whatever the visibility API claims — and SYNC is a no-op unless the
+    // interval has actually expired, so an extra call costs nothing.
+    const onFocus = () => sync();
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       window.clearTimeout(id);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onFocus);
     };
   }, [timer.running, timer.targetAt, sync]);
 
