@@ -1,22 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 
-import { AMBIENTS, AmbientPlayer, type AmbientId } from "@/lib/audio/ambient";
+import { AMBIENTS, ambientPlayer, type AmbientId } from "@/lib/audio/ambient";
 
 /**
  * Described honestly. These are background sounds; the evidence that any of
  * them improves focus is mixed, so nothing here claims that they do.
  */
 export function AmbientControls() {
-  const playerRef = useRef<AmbientPlayer | null>(null);
   const [playing, setPlaying] = useState<AmbientId | null>(null);
 
   function toggle(id: AmbientId) {
-    // Created lazily inside the click, because browsers only allow an
-    // AudioContext to start from a user gesture.
-    playerRef.current ??= new AmbientPlayer();
-    setPlaying(playerRef.current.toggle(id));
+    // Resolved inside the click: the AudioContext underneath can only start
+    // from a user gesture.
+    setPlaying(ambientPlayer().toggle(id));
   }
 
   return (

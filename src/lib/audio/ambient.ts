@@ -19,6 +19,20 @@ export const AMBIENTS: { id: AmbientId; label: string; description: string }[] =
   { id: "fireplace", label: "Fireplace", description: "Low crackle and rumble." },
 ];
 
+/**
+ * One player for the whole app.
+ *
+ * The chime at a phase boundary and the ambient loop have to share an
+ * AudioContext — browsers cap how many a page may create, and a second one per
+ * component would eventually just fail to start.
+ */
+let shared: AmbientPlayer | null = null;
+
+export function ambientPlayer(): AmbientPlayer {
+  shared ??= new AmbientPlayer();
+  return shared;
+}
+
 /** Noise buffer, generated once and looped. Two seconds is enough to not tile audibly. */
 function noiseBuffer(context: AudioContext): AudioBuffer {
   const length = context.sampleRate * 2;

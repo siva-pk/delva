@@ -29,6 +29,7 @@ import {
   describeCalibration,
   suggestEstimate,
 } from "@/lib/calibration/engine";
+import { ambientPlayer } from "@/lib/audio/ambient";
 import { behindOnHydration } from "@/lib/reminders/content";
 import { raise, releaseForBreak, type Nudge } from "@/lib/reminders/queue";
 import { PRESETS } from "@/lib/timer/presets";
@@ -120,6 +121,23 @@ export function TimerScreen() {
       STRETCH_INTERVAL_MS,
     );
     return () => window.clearInterval(id);
+  }, [state.phase]);
+
+  /*
+   * The boundary chime. A block that ends silently isn't finished — the whole
+   * point of a bounded interval is knowing when it closed without watching it.
+   *
+   * `phaseRef` rather than firing on every phase render: this must sound once
+   * per transition. It also stays silent on the first mount, so restoring a
+   * page mid-break doesn't chime at someone who never left.
+   */
+  const phaseRef = useRef<typeof state.phase | null>(null);
+  useEffect(() => {
+    const previous = phaseRef.current;
+    phaseRef.current = state.phase;
+    if (previous === null || previous === state.phase) return;
+    if (state.phase === "break") ambientPlayer().chime("focus-end");
+    else if (previous === "break") ambientPlayer().chime("break-end");
   }, [state.phase]);
 
   // Clearing the estimate belongs here, not in the close-out. Every exit that
