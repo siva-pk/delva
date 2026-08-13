@@ -85,7 +85,10 @@ Everything else is a feature. This is the thing to protect.
 
 ## Working state
 
-**Nothing is built yet.** The repo currently contains ported docs only. See `docs/BUILD-PLAN.md`.
+**D-01 scaffold is in.** Next 16 + React 19 + Tailwind v4 + TypeScript, Supabase clients wired via
+`@supabase/ssr`, holding page at `/`, deployment check at `/api/health`. No timer, no schema, no
+auth. The Supabase project and the Vercel deploy at delva.app are still outstanding. Next up is
+**D-02 · Schema**. See `docs/BUILD-PLAN.md`.
 
 Where things stand:
 - **Gate 0** (<1k MAU) — distribution and product only. **No billing code.** See STRATEGY §6.

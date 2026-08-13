@@ -12,6 +12,33 @@ carries over unchanged.
 
 ---
 
+## 2026-08-12 — D-01: scaffold
+
+**Decision:** Next.js 16 (App Router) + React 19 + Tailwind v4 + TypeScript, `src/` layout, `@/*`
+alias. Supabase wired through `@supabase/ssr` rather than a bare `supabase-js` client, because
+cookie-scoped server clients are what makes row-level security apply to the signed-in user instead
+of to one shared identity — that matters from the first table (D-02), not from D-03.
+
+**Turbopack, not Webpack.** Default in Next 16; no reason to opt out.
+
+**Dark-only, no theme toggle.** A holding page doesn't need one, and the palette is a placeholder
+that the real design work will replace. `globals.css` carries the AA-safe `--color-muted` token and
+a comment on why small text is never dimmed with `opacity`.
+
+**No email capture on the holding page.** BUILD-PLAN scopes D-01 to "something is coming", and a
+capture form implies a table and a write path, which is D-02's decision to make. Open question worth
+revisiting quickly: distribution is the binding constraint, and a holding page that takes no address
+converts nothing. Deliberately deferred, not overlooked.
+
+**`GET /api/health`** exists as a deployment check — it confirms the app booted and the configured
+Supabase project is reachable. Not linked from anywhere and not a user-facing surface.
+
+**Status: partially done.** The code scaffold is built, builds clean, and the holding page renders.
+The Supabase project and the Vercel deployment at `delva.app` are account actions and are not done —
+D-01 stays unticked until they are.
+
+---
+
 ## 2026-07-30 — The pivot: deskflo → Delva
 
 **Decision:** Abandon deskflo's positioning and architecture. Start a new project, Delva, around a

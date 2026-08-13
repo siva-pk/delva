@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/*
+ * Delva base tokens.
+ *
+ * `--color-muted` is the AA-safe token for small text (8.6:1 on `--color-bg`).
+ * Never dim text with `opacity` — it composites toward the background and no
+ * token value can rescue it. Use a real colour. See CLAUDE.md.
+ */
+@theme {
+  --color-bg: #0e1013;
+  --color-surface: #171a1f;
+  --color-text: #f2f4f7;
+  --color-muted: #a8b0bb;
+  --color-accent: #5ecfb8;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}

@@ -3,7 +3,7 @@
 **The single source of truth for what to build next.** Strategy and reasoning live in
 `docs/STRATEGY.md`; this file is the sequence.
 
-**Status:** nothing built. Repo contains ported docs only.
+**Status:** D-01 scaffold built and building clean; Supabase project and Vercel deploy still to do.
 
 ---
 
@@ -30,6 +30,10 @@ Rewriting, re-architecting and polishing all feel like progress. They are not th
 *Goal: a real project with a real schema, deployed. No features yet.*
 
 - [ ] **D-01 · Scaffold** — Next.js + Vercel + Supabase, delva.app live with a holding page.
+  - Code done: Next 16 + React 19 + Tailwind v4, Supabase clients via `@supabase/ssr`, holding page,
+    `/api/health`. Decisions logged 2026-08-12.
+  - **Outstanding:** create the Supabase project, set the two env vars in Vercel, deploy, point
+    `delva.app` at it.
 - [ ] **D-02 · Schema** — the most consequential decision in this phase, because the data model is
   the moat and everything else is replaceable.
   - `sessions` — one row per focus block: `estimate_minutes`, `served_seconds`, `intention`,
