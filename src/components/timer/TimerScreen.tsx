@@ -29,10 +29,13 @@ import {
   describeCalibration,
   suggestEstimate,
 } from "@/lib/calibration/engine";
+import { behindOnHydration } from "@/lib/reminders/content";
+import { raise, releaseForBreak, type Nudge } from "@/lib/reminders/queue";
 import { PRESETS } from "@/lib/timer/presets";
 import type { CompletedSession } from "@/lib/timer/types";
 import { useTimer } from "@/lib/timer/useTimer";
 
+import { BreakScreen } from "../break/BreakScreen";
 import { CloseOut } from "./CloseOut";
 import { EstimateChips } from "./EstimateChips";
 import { IntentionField } from "./IntentionField";
@@ -42,6 +45,9 @@ const buttonBase =
   "rounded-lg px-6 py-3 text-base font-medium focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 const DAILY_GOAL = 4;
+
+/** 30 minutes was deskflo's most-chosen stretch interval. */
+const STRETCH_INTERVAL_MS = 30 * 60 * 1000;
 
 export function TimerScreen() {
   const sessions = useSyncExternalStore(
@@ -86,8 +92,34 @@ export function TimerScreen() {
     [continuesFrom],
   );
 
-  const { state, dispatch, remainingMs } = useTimer({ onSessionEnd });
+  const { state, dispatch, remainingMs, totalMs } = useTimer({ onSessionEnd });
   const now = () => Date.now();
+
+  // Nudges raised during a focus block. Held, never shown mid-focus.
+  const [pending, setPending] = useState<Nudge[]>([]);
+  const [glasses, setGlasses] = useState(0);
+
+  function logWater() {
+    // Logging is always available, in every phase — it is a two-second
+    // self-initiated act, not an interruption (§6). Only *prompting* is gated.
+    setGlasses((count) => count + 1);
+  }
+
+  // A stretch reminder raises itself on an interval. It can only ever enqueue:
+  // `raise` is a no-op outside a running cycle and never surfaces anything.
+  useEffect(() => {
+    if (state.phase !== "focus") return;
+    const id = window.setInterval(
+      () =>
+        setPending(
+          (current) =>
+            raise({ pending: current, released: null }, "stretch", Date.now(), "focus")
+              .pending,
+        ),
+      STRETCH_INTERVAL_MS,
+    );
+    return () => window.clearInterval(id);
+  }, [state.phase]);
 
   // Clearing the estimate belongs here, not in the close-out. Every exit that
   // skipped the close-out — ended early, back to work early, navigated away —
@@ -145,6 +177,24 @@ export function TimerScreen() {
       savedAt: Date.now(),
     });
   }, [state, continuesFrom, lastSessionId, closeOutOpen]);
+
+  /*
+   * Derived, not stored. The nudge shown on a break is a pure function of what
+   * was queued and when the break began — so it is computed, not written by an
+   * effect. Anchoring it to the break's start rather than `Date.now()` also
+   * makes it stable for the whole break: at most one nudge, and it does not
+   * change under the user mid-break.
+   */
+  const breakStartedAt =
+    state.phase === "break" && state.targetAt !== null
+      ? state.targetAt - totalMs
+      : 0;
+  const releasedNudge =
+    state.phase === "break"
+      ? releaseForBreak({ pending, released: null }, breakStartedAt, {
+          behindOnHydration: behindOnHydration(glasses, new Date().getHours()),
+        }).released
+      : null;
 
   const calibration = computeCalibration(sessions);
   const calibrationNote = describeCalibration(calibration);
@@ -250,7 +300,24 @@ export function TimerScreen() {
         </p>
       ) : null}
 
-      <TimeDisplay remainingMs={remainingMs} muted={state.phase === "break"} />
+      {state.phase === "break" ? (
+        <BreakScreen
+          remainingMs={remainingMs}
+          nudge={releasedNudge}
+          onLogWater={logWater}
+          onBackToWork={() => dispatch({ type: "SKIP", now: now() })}
+        >
+          {closeOutOpen ? (
+            <CloseOut
+              intention={state.intention}
+              onDone={() => finishCloseOut(false)}
+              onStillGoing={() => finishCloseOut(true)}
+            />
+          ) : null}
+        </BreakScreen>
+      ) : (
+        <TimeDisplay remainingMs={remainingMs} />
+      )}
 
       {/* "You said 30. It took 55." — stated flatly, no judgement attached. */}
       {state.phase === "break" &&
@@ -263,14 +330,6 @@ export function TimerScreen() {
           </span>
           .
         </p>
-      ) : null}
-
-      {state.phase === "break" && closeOutOpen ? (
-        <CloseOut
-          intention={state.intention}
-          onDone={() => finishCloseOut(false)}
-          onStillGoing={() => finishCloseOut(true)}
-        />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-center gap-3">
@@ -309,15 +368,6 @@ export function TimerScreen() {
           </>
         ) : null}
 
-        {state.phase === "break" ? (
-          <button
-            type="button"
-            onClick={() => dispatch({ type: "SKIP", now: now() })}
-            className={`${buttonBase} bg-surface text-muted hover:text-text`}
-          >
-            Back to work early
-          </button>
-        ) : null}
       </div>
 
       {/*
