@@ -24,8 +24,9 @@ npm run dev
 | `npm run lint`    | ESLint                              |
 | `npm run typecheck` | `tsc --noEmit`                    |
 
-`GET /api/health` reports whether the app booted and the configured Supabase project is reachable.
-It is a deployment check, not a user-facing page.
+`GET /api/health` issues a real request to the configured Supabase project and reports `reachable`,
+`rejected` (project answered, key refused), `unreachable` or `unconfigured`. It is a deployment
+check, not a user-facing page.
 
 ## Deploying
 

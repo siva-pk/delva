@@ -30,8 +30,15 @@ capture form implies a table and a write path, which is D-02's decision to make.
 revisiting quickly: distribution is the binding constraint, and a holding page that takes no address
 converts nothing. Deliberately deferred, not overlooked.
 
-**`GET /api/health`** exists as a deployment check — it confirms the app booted and the configured
-Supabase project is reachable. Not linked from anywhere and not a user-facing surface.
+**`GET /api/health`** exists as a deployment check — it issues a real request to `/rest/v1/` on the
+configured project and distinguishes `reachable` / `rejected` / `unreachable` / `unconfigured`. Not
+linked from anywhere and not a user-facing surface.
+
+The first version used `supabase.auth.getUser()` and was **wrong in the worst direction**: with no
+session cookie, auth-js returns `AuthSessionMissingError` without issuing any HTTP request, so the
+endpoint returned `{"ok":true,"supabase":"reachable"}` against a project that did not exist. Caught
+in review. The lesson generalises — a check that verifies the deploy step must have an input for
+which it fails, and this one had none.
 
 **Status: partially done.** The code scaffold is built, builds clean, and the holding page renders.
 The Supabase project and the Vercel deployment at `delva.app` are account actions and are not done —
