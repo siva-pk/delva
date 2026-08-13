@@ -12,6 +12,40 @@ carries over unchanged.
 
 ---
 
+## 2026-08-12 — D-02: schema
+
+Written as `supabase/migrations/0001_initial_schema.sql`. Unapplied — there is no Supabase project
+and no local Postgres (B-02, B-06). Validated against the real Postgres grammar; that is syntax
+only.
+
+**`estimate_source` (`chip` / `custom` / `suggested`) — the non-obvious column.** Once D-10 starts
+*suggesting* a corrected estimate, an accepted suggestion is no longer an independent guess by the
+user. Folding those rows back into the bias calculation would make calibration measure its own
+output and converge on a number that means nothing. The distinction has to exist in the row from the
+first write, because it cannot be reconstructed later.
+
+**`suggested_estimate_minutes` stored even when not taken.** Answers "are the suggestions any good?"
+later without adding a field and losing all history before it.
+
+**`planned_focus_seconds` kept alongside `served_seconds`, never instead.** Duration is what was
+served; the *difference* between promised and served is what makes an abandoned session legible.
+Storing one would destroy the other.
+
+**`local_started_at` is `timestamp without time zone` and `local_tz` is an IANA name, not an
+offset.** Offsets change twice a year and cannot be reversed into a zone. Together these are what
+make "your Tuesday afternoons" (D-11) answerable at all.
+
+**No `failed` outcome.** `completed` / `abandoned` / `skipped`, where "abandoned" is descriptive
+rather than a judgement. There are no failure states in this product.
+
+**Intention text lives in the user's RLS-scoped row and nowhere else** — 500-char cap, no index, no
+copy in any event payload.
+
+**Session ids are client-generated.** A block started signed-out and offline keeps its identity when
+it later syncs, which is what makes sync idempotent rather than duplicating rows.
+
+---
+
 ## 2026-08-12 — D-01: scaffold
 
 **Decision:** Next.js 16 (App Router) + React 19 + Tailwind v4 + TypeScript, `src/` layout, `@/*`
