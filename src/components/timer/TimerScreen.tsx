@@ -35,6 +35,7 @@ import { PRESETS } from "@/lib/timer/presets";
 import type { CompletedSession } from "@/lib/timer/types";
 import { useTimer } from "@/lib/timer/useTimer";
 
+import { AmbientControls } from "../audio/AmbientControls";
 import { BreakScreen } from "../break/BreakScreen";
 import { CloseOut } from "./CloseOut";
 import { EstimateChips } from "./EstimateChips";
@@ -269,6 +270,10 @@ export function TimerScreen() {
           {calibrationNote ? (
             <p className="w-full text-sm text-muted">{calibrationNote}</p>
           ) : null}
+
+          {/* Idle only: ambient sound started here continues across the
+              focus/break boundary uninterrupted. */}
+          <AmbientControls />
           <fieldset className="flex flex-wrap justify-center gap-2">
             <legend className="sr-only">Block length</legend>
             {PRESETS.map((preset) => {
