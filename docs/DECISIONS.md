@@ -12,6 +12,42 @@ carries over unchanged.
 
 ---
 
+## 2026-08-12 — D-04: timer and session phase machine
+
+**Rebuilt from the archive docs, not ported** — there is no deskflo source in this repo (B-01).
+`docs/design/break-mode.md` §2/§5/§10 and the deskflo decisions log pin down nearly all of it; the
+gaps are marked `TODO(B-01)` in code. Two of deskflo's five presets are simply unrecorded, so
+"Short" and "Long" are reconstructions.
+
+**The machine is a pure function** (`src/lib/timer/machine.ts`), with `now` passed in on every
+event. Every subtle rule here is a rule about *time*, and time is exactly what cannot be exercised
+reliably through a React component. It has 22 tests, all against a fixed epoch — no `Date.now()`
+anywhere in the suite.
+
+**Phase is not running-state.** A paused block is still `focus`; a break not yet visible is already
+`break`. There is a `running` boolean and it is separate.
+
+**Remaining derives from `targetAt`.** The display tick is a 250 ms counter that recomputes from the
+target and never accumulates — a throttled tab loses frames, never time. Tested by asking for
+remaining time 10 minutes after start with zero ticks delivered.
+
+**Breaks auto-start; focus does not.** One function starts a break and it always sets
+`running: true`; `toIdle()` always sets `running: false`.
+
+**A break that expires while the tab is hidden lands in idle with "Break's over — ready when you
+are"** — never a running focus block, because the user has just context-switched. Past 2× the break
+length the cycle is treated as abandoned and the acknowledgement is dropped.
+
+**Emissions live in state, not a ref.** The first version pushed completed sessions onto a ref from
+inside the reducer. React may invoke a reducer twice for the same event, which would have written
+the finished block twice into the data the moat is built on. Caught by the React compiler lint,
+which was right.
+
+**Durations are served, not planned.** `plannedFocusSeconds` and `servedSeconds` are both recorded,
+paused time is excluded from served, and an open pause at the moment a block ends still counts.
+
+---
+
 ## 2026-08-12 — D-03: auth
 
 **Magic link, no passwords.** Nothing to forget, nothing to reset, no password handling in the
@@ -34,8 +70,26 @@ local history alone: signing out stops sync, it is not a request to erase the de
 address from an unknown one, which leaks whether someone has an account.
 
 **Unverified (B-02):** no Supabase project exists, so the magic-link round trip, the code exchange
-and the cookie refresh have never actually run. The unconfigured path *is* verified — `/sign-in`
-degrades to an honest "not configured on this deployment" message instead of throwing.
+and the cookie refresh have never actually run. The unconfigured path *is* verified — the sign-in
+page degrades to an honest "not configured on this deployment" message instead of throwing.
+
+**Only half of D-03 landed.** Local storage and sync are sequenced to arrive with D-08, since
+neither has anything to store until the timer and history exist. Recorded as B-07 — the first
+version of this entry read as though D-03 were finished.
+
+### Corrections from review (same day)
+
+**Refreshed auth cookies were written to the response only.** Server Components read `cookies()`
+from the *request*, so a user returning after token expiry would be refreshed by the proxy and then
+rendered signed-out by the page — and with refresh-token reuse detection on, risked having the
+session revoked outright. Cookies are now written to both, with the response rebuilt from the
+mutated request.
+
+**The profile row had a single point of failure.** `create trigger` on `auth.users` needs an owner
+role that `supabase db push` may not have, and the whole migration would abort on it. The trigger is
+now wrapped so an insufficient-privilege failure is a notice rather than a hard stop, and
+`ensureProfile()` creates the row idempotently on first authenticated load. Without a profile there
+is no `daily_goal_sessions`, and "3 of your 4" has no 4.
 
 ---
 
@@ -70,6 +124,20 @@ copy in any event payload.
 
 **Session ids are client-generated.** A block started signed-out and offline keeps its identity when
 it later syncs, which is what makes sync idempotent rather than duplicating rows.
+
+### Correction from review (same day) — `continued_from_session_id`
+
+The first version had no way to link a block to the one it continues, and that would have inverted
+the sign of the calibration number on the commonest case there is. Estimate 30 minutes, then three
+25-minute blocks joined by "Still going" (D-07) — 75 minutes of real work against a 30-minute
+estimate. Carry the estimate onto the continuation rows and D-09 sees three rows of "estimated 30,
+served 25" and reports the user as *over-cautious*; leave it off and the 50 minutes of overrun are
+simply invisible. Adjacency in `started_at` can't recover it, because it can't distinguish
+"Still going" from "Done, then started something similar" — only the close-out choice knows, and
+only at that moment.
+
+Exactly the failure the file's own header warns about, missed on the first pass and caught in
+review. `estimate_source` was added for a subtler version of the same argument.
 
 ---
 

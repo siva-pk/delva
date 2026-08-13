@@ -61,12 +61,26 @@ create table public.sessions (
   estimate_source public.estimate_source,
   -- What calibration proposed at the time, whether or not it was taken. Lets
   -- "are our suggestions any good?" be answered later without a new field.
-  suggested_estimate_minutes integer check (suggested_estimate_minutes > 0),
+  suggested_estimate_minutes integer
+    check (suggested_estimate_minutes > 0 and suggested_estimate_minutes <= 1440),
 
   -- Personal data. Never logged, never sent to analytics, never put in an
   -- error report (CLAUDE.md). It lives here, in the user's own RLS-scoped row,
   -- and nowhere else.
   intention text check (char_length(intention) <= 500),
+
+  -- Set when this block continues the previous one via "Still going" (D-07).
+  --
+  -- Without it calibration inverts its own sign on the most common case there
+  -- is. Estimate 30, intention "draft the pricing page", then three 25-minute
+  -- blocks on "Still going" — 75 minutes of real work against a 30-minute
+  -- estimate, a 150% underestimate. Carry the estimate onto the continuations
+  -- and D-09 sees three rows of "estimated 30, served 25" and calls the user
+  -- over-cautious; don't carry it and the 50 minutes of overrun are invisible.
+  -- Adjacency cannot reconstruct this: it cannot tell "Still going" from
+  -- "Done, then started something similar". Only the user's close-out choice
+  -- knows, and only at that moment.
+  continued_from_session_id uuid references public.sessions (id) on delete set null,
 
   -- Time actually served in `focus`, excluding paused time.
   served_seconds integer not null check (served_seconds >= 0),
@@ -115,6 +129,7 @@ create index sessions_user_calibration_idx
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   new.updated_at = now();
@@ -147,9 +162,24 @@ begin
 end;
 $$;
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+-- `supabase db push` connects as `postgres`, which does not own `auth.users`
+-- (`supabase_auth_admin` does), so this CREATE TRIGGER can fail with "must be
+-- owner of relation users" depending on the project. That must not abort the
+-- whole migration: the trigger is a convenience, and the app creates the
+-- profile row idempotently on first authenticated load regardless. See
+-- ensureProfile() in src/lib/auth/profile.ts.
+do $$
+begin
+  create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute function public.handle_new_user();
+exception
+  when insufficient_privilege then
+    raise notice 'Skipped on_auth_user_created: insufficient privilege on auth.users. The app creates profiles on first load, so this is not fatal.';
+  when duplicate_object then
+    null;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Row-level security
@@ -170,6 +200,10 @@ create policy "profiles are updatable by their owner"
 create policy "profiles are insertable by their owner"
   on public.profiles for insert
   with check ((select auth.uid()) = id);
+
+create policy "profiles are deletable by their owner"
+  on public.profiles for delete
+  using ((select auth.uid()) = id);
 
 create policy "sessions are readable by their owner"
   on public.sessions for select

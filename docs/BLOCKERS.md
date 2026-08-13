@@ -78,6 +78,20 @@ find out — push it against a throwaway project before the real one.
 
 ---
 
+## B-07 · D-03's sync half is deferred, not delivered
+
+**Not blocked on Siva** — recorded here because the first version of the D-03 entry in DECISIONS.md
+read as though D-03 were complete, and it isn't.
+
+D-03 says the app must "work signed-out, with local storage, and **sync when a user signs in**." The
+auth round trip landed; local storage and the sync path did not, because neither has anything to
+store until the timer exists (D-04) and history is defined (D-08).
+
+**Sequenced to land with D-08.** Until then `getCurrentUser()` / `ensureProfile()` have no callers,
+nothing writes to `public.sessions`, and the RLS policies have no exercising code path.
+
+---
+
 ## B-05 · Phase C built ahead of its own gate
 
 **Blocks:** nothing — this is a deliberate override, recorded so it isn't mistaken for drift.

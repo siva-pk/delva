@@ -11,7 +11,7 @@ import { supabaseEnv } from "./env";
  * would make an account a requirement, which is Gate 1 (BUILD-PLAN), not now.
  */
 export async function updateSession(request: NextRequest) {
-  const response = NextResponse.next({ request });
+  let response = NextResponse.next({ request });
 
   let url: string;
   let anonKey: string;
@@ -28,6 +28,18 @@ export async function updateSession(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
+        // Refreshed cookies must land on BOTH the request and the response.
+        //
+        // Server Components downstream read `cookies()` from the *request*. If
+        // only the response is written, a user returning after their access
+        // token expired gets refreshed here, but the page still sees the old
+        // token and the already-spent refresh token — so it renders them
+        // signed out, and with refresh-token reuse detection on, can get the
+        // session revoked outright.
+        for (const { name, value } of cookiesToSet) {
+          request.cookies.set(name, value);
+        }
+        response = NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }
