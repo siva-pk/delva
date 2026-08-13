@@ -10,10 +10,16 @@ import {
   localDayOf,
   newSessionId,
   savePresetId,
+  setTaskCompleted,
   subscribeToSessions,
   toLocalWallClock,
   toStoredSession,
 } from "@/lib/storage/sessions";
+import {
+  computeCalibration,
+  describeCalibration,
+  suggestEstimate,
+} from "@/lib/calibration/engine";
 import { PRESETS } from "@/lib/timer/presets";
 import type { CompletedSession } from "@/lib/timer/types";
 import { useTimer } from "@/lib/timer/useTimer";
@@ -67,6 +73,18 @@ export function TimerScreen() {
     if (saved) dispatch({ type: "SET_PRESET", presetId: saved });
   }, [dispatch]);
 
+  const calibration = computeCalibration(sessions);
+  const calibrationNote = describeCalibration(calibration);
+  const suggested =
+    state.estimateMinutes !== null
+      ? suggestEstimate(calibration, state.estimateMinutes)
+      : null;
+
+  // What the block that just ended actually cost, against what was predicted.
+  const lastSession = lastSessionId
+    ? sessions.find((session) => session.id === lastSessionId)
+    : undefined;
+
   const today = toLocalWallClock(new Date()).slice(0, 10);
   const doneToday = sessions.filter(
     (session) => localDayOf(session) === today && session.outcome === "completed",
@@ -79,6 +97,9 @@ export function TimerScreen() {
 
   function finishCloseOut(stillGoing: boolean) {
     setCloseOutOpen(false);
+    // Recorded against the block that just ended. Without it, calibration
+    // cannot tell "took 20 minutes" from "gave up after 20 minutes".
+    if (lastSessionId) setTaskCompleted(lastSessionId, !stillGoing);
     // The estimate is never carried onto a continuation — the chain is what
     // relates them, and re-stating it would count the same estimate twice.
     dispatch({ type: "SET_ESTIMATE", minutes: null, source: null });
@@ -116,11 +137,18 @@ export function TimerScreen() {
           />
           <EstimateChips
             value={state.estimateMinutes}
-            suggested={state.suggestedEstimateMinutes}
-            onChange={(minutes, source) =>
-              dispatch({ type: "SET_ESTIMATE", minutes, source })
-            }
+            suggested={suggested}
+            onChange={(minutes, source) => {
+              dispatch({ type: "SET_ESTIMATE", minutes, source });
+              // Recorded whether or not it is taken, so "are our suggestions
+              // any good?" stays answerable later.
+              dispatch({ type: "SUGGEST_ESTIMATE", minutes: suggested });
+            }}
           />
+
+          {calibrationNote ? (
+            <p className="w-full text-sm text-muted">{calibrationNote}</p>
+          ) : null}
           <fieldset className="flex flex-wrap justify-center gap-2">
             <legend className="sr-only">Block length</legend>
             {PRESETS.map((preset) => {
@@ -153,6 +181,19 @@ export function TimerScreen() {
       ) : null}
 
       <TimeDisplay remainingMs={remainingMs} muted={state.phase === "break"} />
+
+      {/* "You said 30. It took 55." — stated flatly, no judgement attached. */}
+      {state.phase === "break" &&
+      lastSession?.estimateMinutes != null &&
+      lastSession.continuedFromSessionId === null ? (
+        <p className="text-center text-base text-muted">
+          You said {lastSession.estimateMinutes} min. It took{" "}
+          <span className="text-text">
+            {Math.max(1, Math.round(lastSession.servedSeconds / 60))} min
+          </span>
+          .
+        </p>
+      ) : null}
 
       {state.phase === "break" && closeOutOpen ? (
         <CloseOut

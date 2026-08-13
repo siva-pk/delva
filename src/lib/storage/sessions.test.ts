@@ -35,6 +35,7 @@ function session(overrides: Partial<StoredSession>): StoredSession {
     estimateSource: null,
     suggestedEstimateMinutes: null,
     continuedFromSessionId: null,
+    taskCompleted: null,
     startedAt: "2026-08-03T12:00:00.000Z",
     endedAt: "2026-08-03T12:50:00.000Z",
     localTz: "America/Edmonton",

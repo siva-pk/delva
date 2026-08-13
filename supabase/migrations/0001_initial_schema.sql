@@ -82,6 +82,16 @@ create table public.sessions (
   -- knows, and only at that moment.
   continued_from_session_id uuid references public.sessions (id) on delete set null,
 
+  -- The close-out answer: true = "Done", false = "Still going", null = never
+  -- answered (block ended early, or the user simply left).
+  --
+  -- Calibration is meaningless without it. Served time only measures
+  -- estimation error if the task actually finished — a chain the user gave up
+  -- on served less than estimated, and counting it would read as
+  -- *over*-estimation. Nothing else in the row can distinguish "took 20
+  -- minutes" from "gave up after 20 minutes".
+  task_completed boolean,
+
   -- Time actually served in `focus`, excluding paused time.
   served_seconds integer not null check (served_seconds >= 0),
   paused_seconds integer not null default 0 check (paused_seconds >= 0),

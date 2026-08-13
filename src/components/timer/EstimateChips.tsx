@@ -41,26 +41,16 @@ export function EstimateChips({
       >
         {CHIPS.map((minutes) => {
           const selected = value === minutes;
-          const isSuggestion = suggested === minutes && value === null;
           return (
             <button
               key={minutes}
               type="button"
               aria-pressed={selected}
-              onClick={() =>
-                onChange(
-                  selected ? null : minutes,
-                  // An accepted suggestion is not an independent guess, and
-                  // must not be fed back into the bias calculation as one.
-                  isSuggestion ? "suggested" : "chip",
-                )
-              }
+              onClick={() => onChange(selected ? null : minutes, "chip")}
               className={`rounded-full px-4 py-2 text-sm focus-visible:ring-2 focus-visible:ring-accent ${
                 selected
                   ? "bg-accent text-bg"
-                  : isSuggestion
-                    ? "bg-surface text-text ring-1 ring-accent"
-                    : "bg-surface text-muted hover:text-text"
+                  : "bg-surface text-muted hover:text-text"
               }`}
             >
               {minutes}m
@@ -69,10 +59,21 @@ export function EstimateChips({
         })}
       </div>
 
-      {suggested !== null && value === null ? (
-        <p className="mt-2 text-sm text-muted">
-          Based on your history, {suggested}m is closer to what this usually
-          takes.
+      {/*
+        A default the user can override, never an imposition: the number they
+        chose stays chosen until they tap this.
+      */}
+      {suggested !== null && value !== null && suggested !== value ? (
+        <p className="mt-3 text-sm text-muted">
+          Going by your history, this kind of thing usually takes you nearer{" "}
+          <button
+            type="button"
+            onClick={() => onChange(suggested, "suggested")}
+            className="text-accent underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {suggested}m
+          </button>
+          .
         </p>
       ) : null}
     </div>

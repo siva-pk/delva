@@ -20,6 +20,8 @@ export type StoredSession = {
   estimateSource: EstimateSource | null;
   suggestedEstimateMinutes: number | null;
   continuedFromSessionId: string | null;
+  /** "Done" = true, "Still going" = false, never answered = null. */
+  taskCompleted: boolean | null;
   /** ISO 8601, UTC. */
   startedAt: string;
   endedAt: string;
@@ -79,6 +81,7 @@ export function toStoredSession(
     estimateSource: session.estimateSource,
     suggestedEstimateMinutes: session.suggestedEstimateMinutes,
     continuedFromSessionId: options.continuedFromSessionId,
+    taskCompleted: null,
     startedAt: started.toISOString(),
     endedAt: new Date(session.endedAt).toISOString(),
     localTz: localTimezone(),
@@ -150,6 +153,19 @@ export function appendSession(session: StoredSession): StoredSession[] {
   // Idempotent on id, so a double-emit can never duplicate a row.
   if (all.some((existing) => existing.id === session.id)) return listSessions();
   const next = [...all, session];
+  write(next);
+  cache = sorted(next);
+  for (const listener of listeners) listener();
+  return cache;
+}
+
+/** Records the close-out answer against a session already written. */
+export function setTaskCompleted(id: string, taskCompleted: boolean) {
+  const all = read();
+  const index = all.findIndex((session) => session.id === id);
+  if (index === -1) return listSessions();
+  const next = [...all];
+  next[index] = { ...next[index], taskCompleted };
   write(next);
   cache = sorted(next);
   for (const listener of listeners) listener();
