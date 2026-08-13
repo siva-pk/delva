@@ -3,6 +3,7 @@
 import { PRESETS } from "@/lib/timer/presets";
 import { useTimer } from "@/lib/timer/useTimer";
 
+import { IntentionField } from "./IntentionField";
 import { TimeDisplay } from "./TimeDisplay";
 
 const buttonBase =
@@ -29,6 +30,25 @@ export function TimerScreen() {
       {state.breakEndedWhileAway ? (
         <p className="rounded-lg bg-surface px-4 py-3 text-sm text-text">
           Break&rsquo;s over — ready when you are.
+        </p>
+      ) : null}
+
+      {state.phase === "idle" ? (
+        <IntentionField
+          value={state.intention}
+          onChange={(intention) =>
+            dispatch({ type: "SET_INTENTION", intention })
+          }
+          // After a break, land with the intention focused — the moment the
+          // commitment gets made (break-mode.md §5).
+          autoFocus={state.breakEndedWhileAway}
+        />
+      ) : null}
+
+      {state.phase === "focus" && state.intention ? (
+        <p className="text-center text-base text-muted">
+          This session you&rsquo;ll{" "}
+          <span className="text-text">{state.intention}</span>
         </p>
       ) : null}
 
