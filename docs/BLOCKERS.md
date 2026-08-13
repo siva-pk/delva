@@ -130,9 +130,12 @@ oversights.
   history until reload. No data loss — `appendSession` re-reads before writing.
 - **A tab left open across midnight** keeps counting the new day's blocks against yesterday until
   something re-renders. Cosmetic, and it corrects itself on any interaction.
-- **`break-mode.md` §4 now contradicts shipped behaviour.** It lists "no feedback prompt" among the
-  break screen's deliberate absences; D-07 puts the close-out there. D-07 is newer and
-  Delva-specific so it wins, but the ported doc should say so rather than silently disagreeing.
+- **`break-mode.md` §4 contradicts shipped behaviour on the close-out.** Resolved as a logged
+  deviation in DECISIONS rather than silently — but the ported doc itself still says "no feedback
+  prompt" and should get a §12-style note next time it is touched.
+- **The break screen doesn't dim the surrounding UI.** §4 asks for a `data-phase` treatment where
+  the break panel is the only lit element. It currently renders as an ordinary column. Cosmetic, but
+  it is the part of §4 that makes the break feel like a different mode rather than another screen.
 
 ---
 

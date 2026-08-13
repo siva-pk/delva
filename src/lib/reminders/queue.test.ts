@@ -81,4 +81,33 @@ describe("the queue holds intent, not history", () => {
   it("is emptied at the start of the next focus block", () => {
     expect(clearForFocus()).toEqual(emptyQueue);
   });
+
+  it("does not re-serve the same nudge at a second break", () => {
+    // The failure this guards: `pending` was never cleared, so one stretch
+    // reminder was released at break after break. Then it aged past
+    // STALE_AFTER_MS, and because `raise` dedupes by kind it blocked every
+    // replacement — stretch reminders stopped for good after ~90 minutes.
+    const raised = raise(emptyQueue, "stretch", T0, "focus");
+
+    const firstBreak = releaseForBreak(raised, T0 + 20 * 60_000, {
+      behindOnHydration: false,
+    });
+    expect(firstBreak.released?.kind).toBe("stretch");
+
+    // The app clears the queue when the next focus block starts, which is the
+    // only way into `focus` — focus never auto-starts.
+    const afterStart = clearForFocus();
+    const secondBreak = releaseForBreak(afterStart, T0 + 60 * 60_000, {
+      behindOnHydration: false,
+    });
+    expect(secondBreak.released).toBeNull();
+
+    // And a fresh reminder can still be raised, rather than being blocked by a
+    // stale resident entry.
+    const later = raise(afterStart, "stretch", T0 + 70 * 60_000, "focus");
+    expect(
+      releaseForBreak(later, T0 + 80 * 60_000, { behindOnHydration: false })
+        .released?.kind,
+    ).toBe("stretch");
+  });
 });

@@ -9,7 +9,12 @@ import { AMBIENTS, ambientPlayer, type AmbientId } from "@/lib/audio/ambient";
  * them improves focus is mixed, so nothing here claims that they do.
  */
 export function AmbientControls() {
-  const [playing, setPlaying] = useState<AmbientId | null>(null);
+  // Seeded from the player, not from null. This component unmounts and
+  // remounts across phase changes while the sound keeps going, and starting
+  // from null would show nothing selected while something was audibly playing.
+  const [playing, setPlaying] = useState<AmbientId | null>(() =>
+    typeof window === "undefined" ? null : ambientPlayer().playing(),
+  );
 
   function toggle(id: AmbientId) {
     // Resolved inside the click: the AudioContext underneath can only start

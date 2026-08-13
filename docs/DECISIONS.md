@@ -12,6 +12,54 @@ carries over unchanged.
 
 ---
 
+## 2026-08-12 — Phase D, and a deliberate deviation from break-mode §4
+
+**The close-out stays on the break screen.** `break-mode.md` §4 lists "no feedback prompt" among
+the break's deliberate absences, and the close-out is a prompt. This is a knowing deviation, in the
+spirit of the three already recorded in §12:
+
+- BUILD-PLAN D-07 is newer than break-mode and Delva-specific, and it puts the close-out "at the
+  break" explicitly.
+- The close-out is what produces `task_completed` and the session chain. Without it at the boundary,
+  the answer has to be asked later — by which point the user has context-switched and the answer is
+  worse, or never given at all. Calibration then has nothing to distinguish "took 20 minutes" from
+  "gave up after 20 minutes".
+- §4's reasoning is about *stats* — panels that invite you to evaluate yourself against a number.
+  "Where did you get to with X?" is a question about the work, asked once, with two answers and no
+  wrong one.
+
+**What did move off the break screen:** the estimate-vs-actual line ("You said 30. It took 45.").
+That genuinely is a session stat and §4 is right about it — it now shows back in idle, next to the
+estimate for the block about to start, which reads better anyway.
+
+### Corrections from review (same day)
+
+**The reminder queue was never emptied.** `pending` only ever grew. One stretch reminder was
+re-served at break after break, and once it aged past the staleness cutoff it sat there permanently
+while `raise`'s dedupe-by-kind refused every replacement — so stretch reminders stopped for good
+after about 90 minutes. Now cleared when a focus block starts, which is safe precisely *because*
+focus blocks never auto-start: every one of them begins with that click, so there is no path into
+`focus` that skips it.
+
+**Hydration was unreachable.** Nothing ever raised a hydration nudge, so that whole branch, the
+priority rule and the pace check were dead code. Worse, §6's load-bearing half was missing entirely:
+logging must be available in every phase including mid-focus, because logging a glass is a
+self-initiated two-second act and §1 is about *involuntary* interruption. There is now an
+always-visible control, and it persists per local day.
+
+**Ambient sound was orphaned by its own controls.** They rendered only when idle, so starting a
+block unmounted the only way to stop a sound that kept playing — and on return the UI showed nothing
+selected while it played, so selecting again layered a second voice over the first. The player is a
+singleton now and the controls stay mounted outside the phase switch.
+
+**"Nothing else measures it" was an overclaim** on the landing page, contradicted by this project's
+own CLAUDE.md, which notes that ClickUp, Jira and ActiTime all do estimate-vs-actual. Reworded to
+the claim that is actually defensible: they do it for managers looking at teams; this does it for
+you, with nobody watching. The content plan's own rule is that one overreaching claim spends the
+credibility — it applies to the product page too.
+
+---
+
 ## 2026-08-12 — D-04: timer and session phase machine
 
 **Rebuilt from the archive docs, not ported** — there is no deskflo source in this repo (B-01).

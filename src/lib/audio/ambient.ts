@@ -33,7 +33,7 @@ export function ambientPlayer(): AmbientPlayer {
   return shared;
 }
 
-/** Noise buffer, generated once and looped. Two seconds is enough to not tile audibly. */
+/** Two seconds of noise, looped — long enough that the tiling isn't audible. */
 function noiseBuffer(context: AudioContext): AudioBuffer {
   const length = context.sampleRate * 2;
   const buffer = context.createBuffer(1, length, context.sampleRate);
@@ -60,7 +60,16 @@ function playNoise(
 
   source.connect(filter).connect(destination);
   source.start();
-  return { stop: () => source.stop() };
+  return {
+    // Disconnect as well as stop. A stopped source is finished, but the filter
+    // stays wired into the gain node, and toggling sounds repeatedly would
+    // accumulate a chain of orphaned nodes for the life of the page.
+    stop: () => {
+      source.stop();
+      source.disconnect();
+      filter.disconnect();
+    },
+  };
 }
 
 function buildVoice(
@@ -118,6 +127,9 @@ function buildVoice(
         stop: () => {
           a.stop();
           b.stop();
+          a.disconnect();
+          b.disconnect();
+          filter.disconnect();
         },
       };
     }
@@ -189,7 +201,7 @@ export class AmbientPlayer {
    */
   chime(kind: "focus-end" | "break-end" = "focus-end") {
     const context = this.ensureContext();
-    if (!context) return;
+    if (!context || !this.gain) return;
 
     const oscillator = context.createOscillator();
     const envelope = context.createGain();
@@ -201,8 +213,14 @@ export class AmbientPlayer {
     envelope.gain.linearRampToValueAtTime(0.2, now + 0.02);
     envelope.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
 
-    oscillator.connect(envelope).connect(context.destination);
+    // Through the shared gain, not straight to the destination — routing round
+    // it would make the chime ignore the volume setting entirely.
+    oscillator.connect(envelope).connect(this.gain);
     oscillator.start(now);
     oscillator.stop(now + 1.3);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      envelope.disconnect();
+    };
   }
 }

@@ -24,8 +24,9 @@ export default function Home() {
           Most timers count down. Delva also records what you thought a task
           would take, next to what it actually took — and after enough sessions
           it can tell you the gap. If work reliably takes you half again as long
-          as you expect, that&rsquo;s a useful thing to know, and nothing else
-          measures it.
+          as you expect, that&rsquo;s a useful thing to know. Project tools have
+          tracked estimate versus actual for years, but for managers looking at
+          teams. This does it for you, with nobody watching.
         </p>
 
         <h2 className="mt-10 text-lg font-medium">It stays yours</h2>

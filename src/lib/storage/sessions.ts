@@ -180,6 +180,33 @@ export function newSessionId(): string {
 }
 
 const TIMER_KEY = "delva.timer.v1";
+const WATER_KEY = "delva.water.v1";
+
+/**
+ * Glasses logged today. Keyed by local day so it rolls over on the user's own
+ * midnight, and survives a reload — a counter that resets when you refresh is
+ * worse than no counter.
+ */
+export function loadWater(day: string): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(WATER_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { day: string; glasses: number };
+    return parsed.day === day ? parsed.glasses : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveWater(day: string, glasses: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(WATER_KEY, JSON.stringify({ day, glasses }));
+  } catch {
+    // Non-fatal.
+  }
+}
 
 /**
  * Everything about a block in flight that would otherwise die with the React

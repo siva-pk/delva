@@ -16,6 +16,8 @@ import {
   saveTimerSnapshot,
   listSessionsOnServer,
   loadPresetId,
+  loadWater,
+  saveWater,
   localDayOf,
   newSessionId,
   savePresetId,
@@ -31,13 +33,20 @@ import {
 } from "@/lib/calibration/engine";
 import { ambientPlayer } from "@/lib/audio/ambient";
 import { behindOnHydration } from "@/lib/reminders/content";
-import { raise, releaseForBreak, type Nudge } from "@/lib/reminders/queue";
+import {
+  clearForFocus,
+  raise,
+  releaseForBreak,
+  type Nudge,
+  type NudgeKind,
+} from "@/lib/reminders/queue";
 import { PRESETS } from "@/lib/timer/presets";
 import type { CompletedSession } from "@/lib/timer/types";
 import { useTimer } from "@/lib/timer/useTimer";
 
 import { AmbientControls } from "../audio/AmbientControls";
 import { BreakScreen } from "../break/BreakScreen";
+import { WaterControl } from "../break/WaterControl";
 import { CloseOut } from "./CloseOut";
 import { EstimateChips } from "./EstimateChips";
 import { IntentionField } from "./IntentionField";
@@ -50,6 +59,7 @@ const DAILY_GOAL = 4;
 
 /** 30 minutes was deskflo's most-chosen stretch interval. */
 const STRETCH_INTERVAL_MS = 30 * 60 * 1000;
+const HYDRATION_INTERVAL_MS = 45 * 60 * 1000;
 
 export function TimerScreen() {
   const sessions = useSyncExternalStore(
@@ -101,27 +111,69 @@ export function TimerScreen() {
   const [pending, setPending] = useState<Nudge[]>([]);
   const [glasses, setGlasses] = useState(0);
 
+  /*
+   * The queue is emptied here, and this is the only place it can be.
+   *
+   * §3.3 — the queue holds intent, not history: a nudge raised during the
+   * previous block must not survive into the one after next. Leaving `pending`
+   * to accumulate had two compounding effects: the same nudge was re-served at
+   * several breaks, and once it aged past STALE_AFTER_MS it sat there
+   * permanently, with `raise`'s dedupe-by-kind refusing every replacement — so
+   * stretch reminders stopped for good after about 90 minutes.
+   *
+   * Clearing on start works precisely because **focus blocks never auto-start**
+   * (break-mode.md §5). Every focus block begins with this click, so there is
+   * no path into `focus` that skips it.
+   */
+  function startFocus() {
+    setPending(clearForFocus().pending);
+    dispatch({ type: "START_FOCUS", now: now() });
+  }
+
   function logWater() {
     // Logging is always available, in every phase — it is a two-second
     // self-initiated act, not an interruption (§6). Only *prompting* is gated.
-    setGlasses((count) => count + 1);
+    setGlasses((count) => {
+      const next = count + 1;
+      saveWater(toLocalWallClock(new Date()).slice(0, 10), next);
+      return next;
+    });
+    // Logging satisfies the intent, so the queued nudge is spent rather than
+    // waiting to be shown at a break for something already done.
+    setPending((current) => current.filter((nudge) => nudge.kind !== "hydration"));
   }
 
-  // A stretch reminder raises itself on an interval. It can only ever enqueue:
-  // `raise` is a no-op outside a running cycle and never surfaces anything.
+  /*
+   * Reminders raise themselves on an interval while a block is actually
+   * running. They can only ever enqueue — nothing here surfaces anything.
+   *
+   * Gated on `state.running`, not just the phase: a paused block should not
+   * accrue reminder time, because §3 is about time actually spent focusing.
+   */
   useEffect(() => {
-    if (state.phase !== "focus") return;
-    const id = window.setInterval(
-      () =>
-        setPending(
-          (current) =>
-            raise({ pending: current, released: null }, "stretch", Date.now(), "focus")
-              .pending,
-        ),
+    if (state.phase !== "focus" || !state.running) return;
+
+    const enqueue = (kind: NudgeKind) =>
+      setPending(
+        (current) =>
+          raise({ pending: current, released: null }, kind, Date.now(), "focus")
+            .pending,
+      );
+
+    const stretch = window.setInterval(
+      () => enqueue("stretch"),
       STRETCH_INTERVAL_MS,
     );
-    return () => window.clearInterval(id);
-  }, [state.phase]);
+    const hydration = window.setInterval(
+      () => enqueue("hydration"),
+      HYDRATION_INTERVAL_MS,
+    );
+
+    return () => {
+      window.clearInterval(stretch);
+      window.clearInterval(hydration);
+    };
+  }, [state.phase, state.running]);
 
   /*
    * The boundary chime. A block that ends silently isn't finished — the whole
@@ -161,10 +213,12 @@ export function TimerScreen() {
     // server and first client render identical, so there is nothing to
     // mismatch on hydration.
     const id = window.setTimeout(() => {
+      const today = toLocalWallClock(new Date()).slice(0, 10);
       const snapshot = loadTimerSnapshot();
       if (!snapshot) {
         const saved = loadPresetId();
         if (saved) dispatch({ type: "SET_PRESET", presetId: saved });
+        setGlasses(loadWater(today));
         hydrated.current = true;
         return;
       }
@@ -178,6 +232,7 @@ export function TimerScreen() {
           ? snapshot.continuesFrom
           : null,
       );
+      setGlasses(loadWater(toLocalWallClock(new Date()).slice(0, 10)));
       hydrated.current = true;
     }, 0);
 
@@ -289,9 +344,6 @@ export function TimerScreen() {
             <p className="w-full text-sm text-muted">{calibrationNote}</p>
           ) : null}
 
-          {/* Idle only: ambient sound started here continues across the
-              focus/break boundary uninterrupted. */}
-          <AmbientControls />
           <fieldset className="flex flex-wrap justify-center gap-2">
             <legend className="sr-only">Block length</legend>
             {PRESETS.map((preset) => {
@@ -342,8 +394,16 @@ export function TimerScreen() {
         <TimeDisplay remainingMs={remainingMs} />
       )}
 
-      {/* "You said 30. It took 55." — stated flatly, no judgement attached. */}
-      {state.phase === "break" &&
+      {/*
+        "You said 30. It took 55." — stated flatly, no judgement attached.
+
+        Shown back in idle, not on the break screen. It is a session stat, and
+        §4 bans those from the break for the same reason it bans the counter:
+        recovery needs reduced top-down control, and a number to compare
+        yourself against is more of it. It reads better here anyway, next to
+        the estimate for the block about to start.
+      */}
+      {state.phase === "idle" &&
       lastSession?.estimateMinutes != null &&
       lastSession.continuedFromSessionId === null ? (
         <p className="text-center text-base text-muted">
@@ -359,7 +419,7 @@ export function TimerScreen() {
         {state.phase === "idle" ? (
           <button
             type="button"
-            onClick={() => dispatch({ type: "START_FOCUS", now: now() })}
+            onClick={startFocus}
             className={`${buttonBase} bg-accent text-bg`}
           >
             Start
@@ -392,6 +452,23 @@ export function TimerScreen() {
         ) : null}
 
       </div>
+
+      {/*
+        Ambient controls stay mounted outside the phase switch. Rendering them
+        only when idle meant that starting a block unmounted the only control
+        for sound that was still playing — audible, unstoppable, and on return
+        the UI showed nothing selected while it played, so selecting it again
+        layered a second voice on top.
+
+        Kept off the break screen itself, which stays minimal, but the sound
+        continues across the boundary either way.
+      */}
+      {state.phase !== "break" ? (
+        <div className="flex w-full flex-col items-center gap-4">
+          <AmbientControls />
+          <WaterControl glasses={glasses} onLog={logWater} />
+        </div>
+      ) : null}
 
       {/*
         Goal-relative, never a bare count. Zero is an invitation.
