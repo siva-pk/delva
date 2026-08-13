@@ -179,6 +179,50 @@ export function newSessionId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+const TIMER_KEY = "delva.timer.v1";
+
+/**
+ * Everything about a block in flight that would otherwise die with the React
+ * tree — which it did, on any refresh or click through to another page, taking
+ * the served minutes and the "Still going" link with it.
+ */
+export type TimerSnapshot = {
+  timer: unknown;
+  continuesFrom: string | null;
+  lastSessionId: string | null;
+  closeOutOpen: boolean;
+  /** When this was written, so a stale chain link can be expired. */
+  savedAt: number;
+};
+
+export function saveTimerSnapshot(snapshot: TimerSnapshot) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TIMER_KEY, JSON.stringify(snapshot));
+  } catch {
+    // Non-fatal: the block keeps running, it just won't survive a reload.
+  }
+}
+
+export function loadTimerSnapshot(): TimerSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(TIMER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TimerSnapshot;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A "Still going" link is only meaningful for as long as the work plausibly
+ * continues. Tap it, walk away, and start something unrelated the next
+ * morning, and without this the new block is chained to yesterday's task.
+ */
+export const CONTINUATION_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 export function loadPresetId(): string | null {
   if (typeof window === "undefined") return null;
   try {

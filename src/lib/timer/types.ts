@@ -72,6 +72,8 @@ export type TimerEvent =
   | { type: "RESET"; now: number }
   /** Tab became visible, or state was rehydrated from storage. */
   | { type: "SYNC"; now: number }
+  /** Rehydrate a block that was in flight when the page went away. */
+  | { type: "RESTORE"; state: TimerState }
   | { type: "DISMISS_AWAY_NOTICE" };
 
 /** What gets handed to the store when a focus block ends, for any reason. */

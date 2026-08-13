@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import {
+  estimateTakeUpRate,
   listSessions,
   listSessionsOnServer,
   localDayOf,
@@ -65,9 +66,21 @@ export function HistoryList() {
   }
 
   const days = groupByLocalDay(sessions);
+  const takeUp = estimateTakeUpRate(sessions);
 
   return (
     <div className="flex flex-col gap-10">
+      {/*
+        D-06's instrumentation, made observable. Capturing the fields is a
+        precondition for instrumenting take-up, not instrumentation — the
+        number has to be readable by someone. Local, no analytics call, and not
+        blocked by Gate 0.
+      */}
+      <p className="text-sm text-muted">
+        You put a time on {takeUp.withEstimate} of your last {takeUp.total}{" "}
+        blocks.
+      </p>
+
       {days.map(([day, daySessions]) => {
         const served = daySessions.reduce(
           (total, session) => total + session.servedSeconds,

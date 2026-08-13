@@ -313,6 +313,12 @@ export function reduce(state: TimerState, event: TimerEvent): Transition {
       return { state: toIdle(state, overshoot <= breakLength * 2) };
     }
 
+    case "RESTORE":
+      // A running block survives a refresh or a trip to another page. The
+      // caller follows this with SYNC so wall-clock still decides what
+      // actually happened while the page was gone.
+      return { state: event.state };
+
     case "DISMISS_AWAY_NOTICE":
       return { state: { ...state, breakEndedWhileAway: false } };
 

@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import {
+  CONTINUATION_MAX_AGE_MS,
   appendSession,
   listSessions,
+  loadTimerSnapshot,
+  saveTimerSnapshot,
   listSessionsOnServer,
   loadPresetId,
   localDayOf,
@@ -45,6 +54,21 @@ export function TimerScreen() {
   /** Set by "Still going" — the next block continues this one. */
   const [continuesFrom, setContinuesFrom] = useState<string | null>(null);
 
+  /**
+   * Latched when the restore has *completed*, and it gates both reading and
+   * writing.
+   *
+   * Two mistakes are easy here and both silently lose a running block:
+   *   * Gating the persist effect on anything set earlier than this — it then
+   *     fires on the same commit the restore is scheduled on and overwrites
+   *     the snapshot with the initial idle state before it is read.
+   *   * Latching on "started" instead of "finished" — StrictMode mounts twice,
+   *     the cleanup cancels the first scheduled read, and the second pass
+   *     skips scheduling because the flag is already set, so the restore never
+   *     runs at all.
+   */
+  const hydrated = useRef(false);
+
   const onSessionEnd = useCallback(
     (session: CompletedSession) => {
       const id = newSessionId();
@@ -65,13 +89,62 @@ export function TimerScreen() {
   const { state, dispatch, remainingMs } = useTimer({ onSessionEnd });
   const now = () => Date.now();
 
-  // The last-used preset is a better default than any picker default. Applied
-  // once on mount, via dispatch rather than setState, so it is not a cascading
-  // render.
+  // Clearing the estimate belongs here, not in the close-out. Every exit that
+  // skipped the close-out — ended early, back to work early, navigated away —
+  // used to leave the estimate set, so the next block recorded it a second
+  // time. One estimate by the user became N independent estimates in storage,
+  // inflating D-06's take-up rate and feeding D-09 duplicates.
   useEffect(() => {
-    const saved = loadPresetId();
-    if (saved) dispatch({ type: "SET_PRESET", presetId: saved });
+    if (state.phase === "break") {
+      dispatch({ type: "SET_ESTIMATE", minutes: null, source: null });
+    }
+  }, [state.phase, dispatch]);
+
+  // Restore a block that was in flight when the page went away, then let
+  // wall-clock decide what happened while it was gone.
+  useEffect(() => {
+    if (hydrated.current) return;
+
+    // Deferred by a tick: localStorage is an external system being read, and
+    // reading it in the effect body is a cascading render. Also keeps the
+    // server and first client render identical, so there is nothing to
+    // mismatch on hydration.
+    const id = window.setTimeout(() => {
+      const snapshot = loadTimerSnapshot();
+      if (!snapshot) {
+        const saved = loadPresetId();
+        if (saved) dispatch({ type: "SET_PRESET", presetId: saved });
+        hydrated.current = true;
+        return;
+      }
+
+      dispatch({ type: "RESTORE", state: snapshot.timer as typeof state });
+      dispatch({ type: "SYNC", now: Date.now() });
+      setLastSessionId(snapshot.lastSessionId);
+      setCloseOutOpen(snapshot.closeOutOpen);
+      setContinuesFrom(
+        Date.now() - snapshot.savedAt <= CONTINUATION_MAX_AGE_MS
+          ? snapshot.continuesFrom
+          : null,
+      );
+      hydrated.current = true;
+    }, 0);
+
+    return () => window.clearTimeout(id);
   }, [dispatch]);
+
+  // Persist after every change, so the worst case is losing the last moment
+  // rather than the whole block.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    saveTimerSnapshot({
+      timer: state,
+      continuesFrom,
+      lastSessionId,
+      closeOutOpen,
+      savedAt: Date.now(),
+    });
+  }, [state, continuesFrom, lastSessionId, closeOutOpen]);
 
   const calibration = computeCalibration(sessions);
   const calibrationNote = describeCalibration(calibration);
@@ -100,9 +173,6 @@ export function TimerScreen() {
     // Recorded against the block that just ended. Without it, calibration
     // cannot tell "took 20 minutes" from "gave up after 20 minutes".
     if (lastSessionId) setTaskCompleted(lastSessionId, !stillGoing);
-    // The estimate is never carried onto a continuation — the chain is what
-    // relates them, and re-stating it would count the same estimate twice.
-    dispatch({ type: "SET_ESTIMATE", minutes: null, source: null });
     if (stillGoing) {
       setContinuesFrom(lastSessionId);
     } else {
@@ -250,12 +320,20 @@ export function TimerScreen() {
         ) : null}
       </div>
 
-      {/* Goal-relative, never a bare count. Zero is an invitation. */}
-      <p className="text-sm text-muted">
-        {doneToday === 0
-          ? "No blocks yet today — start when you're ready."
-          : `${doneToday} of your ${DAILY_GOAL} today`}
-      </p>
+      {/*
+        Goal-relative, never a bare count. Zero is an invitation.
+
+        Hidden during a break: break-mode.md §4 lists session counts among the
+        things the break screen must not gain, because a progress panel is more
+        directed attention during the one interval that exists to reduce it.
+      */}
+      {state.phase !== "break" ? (
+        <p className="text-sm text-muted">
+          {doneToday === 0
+            ? "No blocks yet today — start when you're ready."
+            : `${doneToday} of your ${DAILY_GOAL} today`}
+        </p>
+      ) : null}
     </div>
   );
 }
